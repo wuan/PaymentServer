@@ -1,0 +1,84 @@
+= Payment process
+
+== Browser workflow
+
+=== Retrieve token from Stripe
+
+POST https://api.stripe.com/v1/tokens
+
+----
+card[name]=<name>&
+card[address_line1]=<address&
+card[address_line2]=&
+card[address_city]=Munich&
+card[address_state]=WV&
+card[address_zip]=80000&
+card[address_country]=US&
+card[currency]=USD&
+card[number]=1234567887654321&
+card[cvc]=123&
+card[exp_month]=12&
+card[exp_year]=22&
+guid=762c71c6-faea-44fd-aedd-e8678678686785caea&
+muid=90d08257-feff-4ff0-8a26-56f56756756726d521&
+sid=7725a954-faea-4fee-9347-123454353024534534&
+payment_user_agent=stripe.js%2F54555345e%3B+stripe-js-v3%2F45345696e&
+time_on_page=79343&
+key=pk_live_C94n1iS49jH7gpBEkMhDbxVb00xdC0jaBm
+----
+
+Response
+----
+{
+  "id": "tok_2LasdfgasdfasdfasfasdfZX0",
+  "object": "token",
+  "card": {
+    "id": "card_adfasdfasdfasdfsadfN",
+    "object": "card",
+    "address_city": "Munich",
+    "address_country": "US",
+    "address_line1": "<address>",
+    "address_line1_check": "unchecked",
+    "address_line2": "",
+    "address_state": "WV",
+    "address_zip": "80000",
+    "address_zip_check": "unchecked",
+    "brand": "MasterCard",
+    "country": "DE",
+    "currency": "usd",
+    "cvc_check": "unchecked",
+    "dynamic_last4": null,
+    "exp_month": 12,
+    "exp_year": 2022,
+    "funding": "credit",
+    "last4": "4321",
+    "name": "<name>",
+    "tokenization_method": null
+  },
+  "client_ip": "109.43.50.188",
+  "created": 1662129312,
+  "livemode": true,
+  "type": "card",
+  "used": false
+}
+----
+
+==== Payment Server
+
+POST https://payments.private.storage/v1/stripe/charge
+
+----
+{
+  "voucher" : "AWaYIHqjuCOlDjOV4VMLR_czbir3FeUapizTrZ50YwQj",
+  "checksum" : "3fdc6253206337f4b2082489c9dfa66687121d3016fdd52b346ead9525571cc5",
+  "token" : "tok_2LasdfgasdfasdfasfasdfZX0",
+  "currency" : "USD",
+  "amount" : "650"
+}
+----
+
+Response
+
+----
+{"success":true}
+----
