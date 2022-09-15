@@ -1,11 +1,27 @@
 = Payment process
 
+== Links
+
+* https://stripe.com/blog/european-payment-methods-available-worldwide
+* https://stripe.com/docs/payments/older-apis#comparing-the-apis
+* https://stripe.com/docs/payments/payment-intents/migration/charges
+* https://stripe.com/gb/guides/strong-customer-authentication
+
 == Browser workflow
 
-=== Retrieve token from Stripe
+=== Current payment methoud through Charges API
 
+==== Retrieve token for payment
+
+See: link:https://stripe.com/docs/api/tokens[Tokens]
+
+[source]
+----
 POST https://api.stripe.com/v1/tokens
+----
 
+Request (link:https://stripe.com/docs/api/tokens/create_card[Create a card token])
+[source]
 ----
 card[name]=<name>&
 card[address_line1]=<address&
@@ -27,7 +43,9 @@ time_on_page=79343&
 key=pk_live_C94n1iS49jH7gpBEkMhDbxVb00xdC0jaBm
 ----
 
-Response
+Response (link:https://stripe.com/docs/api/tokens/object[The token object])
+
+[source]
 ----
 {
   "id": "tok_2LasdfgasdfasdfasfasdfZX0",
@@ -63,7 +81,7 @@ Response
 }
 ----
 
-==== Payment Server
+==== Execute payment through payment server
 
 POST https://payments.private.storage/v1/stripe/charge
 
@@ -81,4 +99,77 @@ Response
 
 ----
 {"success":true}
+----
+
+==== Migration
+
+In order to allow Strong Customer Authentication (SCA) we need to migrate to use the Payment Intents (see link:https://stripe.com/docs/payments/payment-intents/migration[Payment intents migration]) or use the.
+
+This changes the way the transaction is managed:
+
+
+|===
+|Step |using Charges |using Payment intents
+
+|1. Register intent
+|n/a
+|`POST /v1/payment_intents`
+
+|2. Collect payment details on client
+|`stripe.createToken(cardElement)`
+|`stripe.confirmCardPayment(secret, cardElement)`
+
+|3. Initiate create of the payment
+|`POST /v1/charges`
+|n/a
+|===
+
+Currently the PaymentServer handles the call triggering the payments in a synchronous way and will receive the success/failed information directly. Follow up action can be executed in place after a successful payment.
+
+In the new workflow the PaymentServer will need to create a Payment intent using the Stripe client secret and return it to the Browser. and store it with some reference to the customer in order to not lose payments when the Browser is killed between authorizing the payment and notifying the backend about the success.
+This is because the actual payment is triggered from browser interactions referencing the Payment intent (This allows to use additional security features as the Browser interacts directly with the Stripe API).
+
+After the Stripe interaction is done, we need to poll Stripe with the reference to the Payment intent in order to check if the payment has been successful.
+
+We assume that we need to store the created intents somewhere in the backend, to avoid that customers are losing payments when the process is interrupted. That may add much more complexity, because that state needs to be stored and managed.
+
+[plantuml, target=diagram-classes, format=png]
+....
+participant Browser as browser
+participant PaymentService as service
+participant Stripe as backend
+
+browser -> service : Create Payment intent
+service -> backend : Create Payment intent
+backend -> service : Payment intent
+service -> browser : Payment intent
+
+alt Error: Payment already exists
+
+browser -> service : Get Payment intent
+service -> backend : Get Payment intent
+backend -> service : Either[Payment intent]
+service -> browser : Payment intent
+
+end
+
+alt No Payment found
+
+browser -> backend : Execute stripe.confirmCardPayment(...)
+backend -> browser : Success/Failure
+
+end
+....
+
+Open topics
+* it seems to be possible to store metadata when creating the payment intent. We could use this to store the `voucher_id` with the payment in order to retrieve an interupted payment information later on:
++
+
+----
+curl https://api.stripe.com/v1/payment_intents \
+  -u sk_test_Y17KokhC3SRYCQTLYiU5ZCD2: \
+  -d "amount"=1099 \
+  -d "currency"="usd" \
+  -d "payment_method_types[]"="card" \
+  -d "metadata[voucher_id]"="234234234"
 ----
